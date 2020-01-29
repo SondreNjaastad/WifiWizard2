@@ -616,12 +616,15 @@ var WifiWizard2 = {
         }
         ssid = ssid.trim();
 
-        if (ssid.charAt(0) != '"') {
-            ssid = '"' + ssid;
-        }
+        if(parseInt(device.version.split('.')[0]) < 10){
 
-        if (ssid.charAt(ssid.length - 1) != '"') {
-            ssid = ssid + '"';
+            if (ssid.charAt(0) != '"') {
+                ssid = '"' + ssid;
+            }
+
+            if (ssid.charAt(ssid.length - 1) != '"') {
+                ssid = ssid + '"';
+            }
         }
 
         return ssid;
