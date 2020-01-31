@@ -17,7 +17,7 @@ package wifiwizard2;
 import org.apache.cordova.*;
 
 import java.util.List;
-import java.util.concurrent.Future;
+import java.util.concurrent.Future; 
 import java.lang.InterruptedException;
 
 import org.json.JSONArray;
@@ -483,12 +483,14 @@ public class WifiWizard2 extends CordovaPlugin {
           @Override
           public void onAvailable(Network network) {
             Log.e(TAG, "onAvailable");
+            callbackContext.success( network.toString() );
             super.onAvailable(network);
           }
 
           @Override
           public void onUnavailable(){
             Log.e(TAG, "onUnavailable");
+            callbackContext.error( "ERROR_ADDING_NETWORK" );
             super.onUnavailable();
           }
         });
@@ -863,6 +865,8 @@ public class WifiWizard2 extends CordovaPlugin {
 
     if (networkIdToDisconnect > 0) {
 
+      // TODO: Effera, this method is allso depricated
+      //Use https://developer.android.com/reference/android/net/wifi/WifiManager.html#removeNetworkSuggestions(java.util.List%3Candroid.net.wifi.WifiNetworkSuggestion%3E)
       if( wifiManager.disableNetwork(networkIdToDisconnect) ){
 
         maybeResetBindALL();
@@ -896,6 +900,9 @@ public class WifiWizard2 extends CordovaPlugin {
    * @param callbackContext A Cordova callback context
    * @return true if network disconnected, false if failed
    */
+
+  // TODO: Effera, this method is allso depricated
+  //Use https://developer.android.com/reference/android/net/wifi/WifiManager.html#removeNetworkSuggestions(java.util.List%3Candroid.net.wifi.WifiNetworkSuggestion%3E)
   private boolean disconnect(CallbackContext callbackContext) {
     Log.d(TAG, "WifiWizard2: disconnect entered.");
 
