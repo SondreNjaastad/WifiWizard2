@@ -116,6 +116,7 @@ public class WifiWizard2 extends CordovaPlugin {
   private ConnectivityManager connectivityManager;
   private ConnectivityManager.NetworkCallback networkCallback;
 
+
   // Store AP, previous, and desired wifi info
   private AP previous, desired;
 
@@ -467,6 +468,13 @@ public class WifiWizard2 extends CordovaPlugin {
       if( API_VERSION >= 29){
         Log.d(TAG, "Got API version 29. Connnecting to " + newSSID + ", WPA2 " + newPass);
 
+        networkCallback = new ConnectivityManager.NetworkCallback() {
+          @Override
+          public void onAvailable(Network network) {
+            connectivityManager.setProcessDefaultNetwork(network);
+          }
+        };
+
         WifiNetworkSpecifier.Builder builder = new WifiNetworkSpecifier.Builder();
         builder.setSsid(newSSID);
         builder.setWpa2Passphrase(newPass);
@@ -479,21 +487,7 @@ public class WifiWizard2 extends CordovaPlugin {
 
         NetworkRequest nr = networkRequestBuilder1.build();
         ConnectivityManager cm = (ConnectivityManager) cordova.getActivity().getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-        cm.requestNetwork(nr, new ConnectivityManager.NetworkCallback() {
-          @Override
-          public void onAvailable(Network network) {
-            Log.e(TAG, "onAvailable");
-            callbackContext.success( network.toString() );
-            super.onAvailable(network);
-          }
-
-          @Override
-          public void onUnavailable(){
-            Log.e(TAG, "onUnavailable");
-            callbackContext.error( "ERROR_ADDING_NETWORK" );
-            super.onUnavailable();
-          }
-        });
+        cm.requestNetwork(nr, this.networkCallback);
       } else {
         // After processing authentication types, add or update network
         if (wifi.networkId == -1) { // -1 means SSID configuration does not exist yet
@@ -861,37 +855,47 @@ public class WifiWizard2 extends CordovaPlugin {
       return false;
     }
 
-    int networkIdToDisconnect = ssidToNetworkId(ssidToDisconnect);
+    if( API_VERSION < 29){
+        int networkIdToDisconnect = ssidToNetworkId(ssidToDisconnect);
+        if (networkIdToDisconnect > 0) {
 
-    if (networkIdToDisconnect > 0) {
+        if( wifiManager.disableNetwork(networkIdToDisconnect) ){
 
-      // TODO: Effera, this method is allso depricated
-      //Use https://developer.android.com/reference/android/net/wifi/WifiManager.html#removeNetworkSuggestions(java.util.List%3Candroid.net.wifi.WifiNetworkSuggestion%3E)
-      if( wifiManager.disableNetwork(networkIdToDisconnect) ){
+          maybeResetBindALL();
 
-        maybeResetBindALL();
+          // We also remove the configuration from the device (use "disable" to keep config)
+          if( wifiManager.removeNetwork(networkIdToDisconnect) ){
+            callbackContext.success("Network " + ssidToDisconnect + " disconnected and removed!");
+          } else {
+            callbackContext.error("DISCONNECT_NET_REMOVE_ERROR");
+            Log.d(TAG, "WifiWizard2: Unable to remove network!");
+            return false;
+          }
 
-        // We also remove the configuration from the device (use "disable" to keep config)
-        if( wifiManager.removeNetwork(networkIdToDisconnect) ){
-          callbackContext.success("Network " + ssidToDisconnect + " disconnected and removed!");
         } else {
-          callbackContext.error("DISCONNECT_NET_REMOVE_ERROR");
-          Log.d(TAG, "WifiWizard2: Unable to remove network!");
+          callbackContext.error("DISCONNECT_NET_DISABLE_ERROR");
+          Log.d(TAG, "WifiWizard2: Unable to disable network!");
           return false;
         }
 
-      } else {
-        callbackContext.error("DISCONNECT_NET_DISABLE_ERROR");
-        Log.d(TAG, "WifiWizard2: Unable to disable network!");
-        return false;
-      }
-
-      return true;
+        return true;
     } else {
       callbackContext.error("DISCONNECT_NET_ID_NOT_FOUND");
       Log.d(TAG, "WifiWizard2: Network not found to disconnect.");
       return false;
     }
+    } else {
+      try{
+          Log.d(TAG, "Got API version 29. Disconnecting from " + ssidToDisconnect);
+          ConnectivityManager cm = (ConnectivityManager) cordova.getActivity().getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+          cm.unregisterNetworkCallback(this.networkCallback);
+          return true;
+        }
+        catch(Exception e) {
+          callbackContext.error(e.getMessage());
+          return false;
+        }
+      }
   }
 
   /**
@@ -900,9 +904,6 @@ public class WifiWizard2 extends CordovaPlugin {
    * @param callbackContext A Cordova callback context
    * @return true if network disconnected, false if failed
    */
-
-  // TODO: Effera, this method is allso depricated
-  //Use https://developer.android.com/reference/android/net/wifi/WifiManager.html#removeNetworkSuggestions(java.util.List%3Candroid.net.wifi.WifiNetworkSuggestion%3E)
   private boolean disconnect(CallbackContext callbackContext) {
     Log.d(TAG, "WifiWizard2: disconnect entered.");
 
@@ -1265,7 +1266,10 @@ public class WifiWizard2 extends CordovaPlugin {
       int networkId = -1;
 
       // For each network in the list, compare the SSID with the given one
+      Log.d(TAG, "Testing for " + ssid);
+      
       for (WifiConfiguration test : currentNetworks) {
+        Log.d(TAG, test.SSID + " === " + ssid);
         if (test.SSID != null && test.SSID.equals(ssid)) {
           networkId = test.networkId;
         }
